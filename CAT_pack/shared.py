@@ -208,7 +208,7 @@ def add_argument(argument_group, dest, required, default=None, help_=None):
         )
     elif dest == "f":
         if help_ is None:
-            help_ = "f parameter [0-0.99] (default: {0:.2f})." "".format(
+            help_ = "f parameter [0-0.99] (default: {0:.2f}).".format(
                 default)
         argument_group.add_argument(
             "-f",
@@ -218,6 +218,20 @@ def add_argument(argument_group, dest, required, default=None, help_=None):
             required=required,
             type=float,
             choices=[i / 100 for i in range(0, 100)],
+            action=DecimalAction,
+            default=default,
+            help=help_,
+        )
+    elif dest == "orf_support":
+        if help_ is None:
+            help_ = ("Required fraction of support for assigning taxonomy to "
+                "ORFs [0.50-1.00] (default: {0:.2f}).").format(default)
+        argument_group.add_argument(
+            "--orf_support",
+            dest="orf_support",
+            required=required,
+            type=float,
+            choices=[i / 100 for i in range(50, 101)],
             action=DecimalAction,
             default=default,
             help=help_,

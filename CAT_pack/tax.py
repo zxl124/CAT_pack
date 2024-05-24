@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-
+from collections import defaultdict
 import shared
 
 
@@ -98,36 +98,43 @@ def find_LCA(list_of_lineages):
             return taxid
 
 
-def find_LCA_for_ORF(hits, fastaid2LCAtaxid, taxid2parent):
-    list_of_lineages = []
+def find_LCA_for_ORF(hits, fastaid2LCAtaxid, taxid2lineage, orf_support):
     top_bitscore = 0
+    total_bitscore = 0
+    taxid2bitscore = defaultdict(float)
+    lineage_length = defaultdict(int)
 
     for (hit, bitscore) in hits:
         if bitscore > top_bitscore:
             top_bitscore = bitscore
-            
+        total_bitscore += bitscore
+
         try:
             taxid = fastaid2LCAtaxid[hit]
-            lineage = find_lineage(taxid, taxid2parent)
-
-            list_of_lineages.append(lineage)
         except:
             # The fastaid does not have an associated taxid for some reason.
-            pass
+            continue
+        lineage = taxid2lineage[taxid]
+        for i,taxid in enumerate(lineage):
+            taxid2bitscore[taxid] += bitscore
+            lineage_length[taxid] = max(len(lineage)-i, lineage_length[taxid])
+            # Here uses length of lineage as proxy for deepest taxonomy rank, which is not always true
         
-    if len(list_of_lineages) == 0:
+    if len(taxid2bitscore) == 0:
         return (
             "no taxid found ({0})".format(";".join([i[0] for i in hits])),
             top_bitscore
         )
+    
+    max_length = 0
+    best_taxid = "no taxid found ({0})".format(";".join([i[0] for i in hits]))
+    for taxid, bitscore in taxid2bitscore.items():
+        if bitscore/total_bitscore >= orf_support and lineage_length[taxid] > max_length:
+            max_length = lineage_length[taxid]
+            best_taxid = taxid
 
-    overlap = set.intersection(*map(set, list_of_lineages))
+    return (best_taxid, top_bitscore)
 
-    for taxid in list_of_lineages[0]:
-        if taxid in overlap:
-            return (taxid, top_bitscore)
-        
-        
 def find_questionable_taxids(lineage, taxids_with_multiple_offspring):
     questionable_taxids = []
 

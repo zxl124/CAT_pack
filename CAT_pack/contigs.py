@@ -26,6 +26,7 @@ def parse_arguments():
     optional = parser.add_argument_group("Optional arguments")
     shared.add_argument(optional, "r", False, default=decimal.Decimal(10))
     shared.add_argument(optional, "f", False, default=decimal.Decimal(0.5))
+    shared.add_argument(optional, "orf_support", False, default=decimal.Decimal(1.0))
     shared.add_argument(optional, "out_prefix", False, default="./out.CAT")
     shared.add_argument(optional, "proteins_fasta", False)
     shared.add_argument(optional, "alignment_file", False)
@@ -296,6 +297,12 @@ def run():
         args.fastaid2LCAtaxid_file, all_hits, args.log_file, args.quiet)
     taxids_with_multiple_offspring = tax.import_taxids_with_multiple_offspring(
         args.taxids_with_multiple_offspring_file, args.log_file, args.quiet)
+    
+    # Find lineages of all taxids so they don't have to be found repetitively later
+    taxid2lineage = dict()
+    for taxid in fastaid2LCAtaxid.values():
+        if taxid not in taxid2lineage:
+            taxid2lineage = tax.find_lineage(taxid, taxid2parent)
 
     message = "CAT is spinning! Files {0} and {1} are created.".format(
         args.contig2classification_output_file, args.ORF2LCA_output_file)
@@ -330,7 +337,7 @@ def run():
                 
                 (taxid,
                         top_bitscore) = tax.find_LCA_for_ORF(
-                    ORF2hits[ORF], fastaid2LCAtaxid, taxid2parent)
+                    ORF2hits[ORF], fastaid2LCAtaxid, taxid2lineage, args.orf_support)
                  
                 if taxid.startswith("no taxid found"):
                     outf2.write("{0}\t{1}\t{2}\t{3}\n".format(

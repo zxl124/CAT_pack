@@ -479,6 +479,11 @@ def run():
                 args.taxids_with_multiple_offspring_file,
                 args.log_file,
                 args.quiet)
+            # Find lineages of all taxids so they don't have to be found repetitively later
+            taxid2lineage = dict()
+            for taxid in fastaid2LCAtaxid.values():
+                if taxid not in taxid2lineage:
+                    taxid2lineage = tax.find_lineage(taxid, taxid2parent)
             message = ('Finding lineages for unclassified/unmapped sequences...')
             shared.give_user_feedback(message, args.log_file, args.quiet,
                 show_time=True)
@@ -489,6 +494,7 @@ def run():
                                           taxid2parent,
                                           taxid2rank,
                                           taxids_with_multiple_offspring,
+                                          taxid2lineage,
                                           args.no_stars)
             u2c=process_CAT_table('{0}.unmapped2classification.txt'.format(args.out_prefix), 
                                   args.nodes_dmp, 
@@ -554,6 +560,7 @@ def write_unmapped2classification(seq2hits,
                                   taxid2parent, 
                                   taxid2rank, 
                                   taxids_with_multiple_offspring,
+                                  taxid2lineage,
                                   no_stars):
     
     
@@ -575,7 +582,7 @@ def write_unmapped2classification(seq2hits,
             
             (taxid,
                     top_bitscore) = tax.find_LCA_for_ORF(
-                            seq2hits[seq], fastaid2LCAtaxid, taxid2parent)
+                            seq2hits[seq], fastaid2LCAtaxid, taxid2lineage)
              
             if not taxid.startswith('no taxid found'):
                 lineage = tax.find_lineage(taxid, taxid2parent)

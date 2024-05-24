@@ -420,6 +420,12 @@ def run():
     taxids_with_multiple_offspring = tax.import_taxids_with_multiple_offspring(
         args.taxids_with_multiple_offspring_file, args.log_file, args.quiet)
     
+    # Find lineages of all taxids so they don't have to be found repetitively later
+    taxid2lineage = dict()
+    for taxid in fastaid2LCAtaxid.values():
+        if taxid not in taxid2lineage:
+            taxid2lineage = tax.find_lineage(taxid, taxid2parent)
+    
     message = "BAT is flying! Files {0} and {1} are created.".format(
         args.bin2classification_output_file, args.ORF2LCA_output_file)
     shared.give_user_feedback(message, args.log_file, args.quiet)
@@ -451,7 +457,7 @@ def run():
 
                     (taxid,
                             top_bitscore) = tax.find_LCA_for_ORF(
-                        ORF2hits[ORF], fastaid2LCAtaxid, taxid2parent)
+                        ORF2hits[ORF], fastaid2LCAtaxid, taxid2lineage)
                      
                     if taxid.startswith("no taxid found"):
                         outf2.write("{0}\t{1}\t{2}\t{3}\t{4}\n".format(
