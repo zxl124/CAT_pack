@@ -484,7 +484,7 @@ def run():
             taxid2lineage = dict()
             for taxid in fastaid2LCAtaxid.values():
                 if taxid not in taxid2lineage:
-                    taxid2lineage = tax.find_lineage(taxid, taxid2parent)
+                    taxid2lineage[taxid] = tax.find_lineage(taxid, taxid2parent)
             message = ('Finding lineages for unclassified/unmapped sequences...')
             shared.give_user_feedback(message, args.log_file, args.quiet,
                 show_time=True)

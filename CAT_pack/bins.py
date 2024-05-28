@@ -425,7 +425,7 @@ def run():
     taxid2lineage = dict()
     for taxid in fastaid2LCAtaxid.values():
         if taxid not in taxid2lineage:
-            taxid2lineage = tax.find_lineage(taxid, taxid2parent)
+            taxid2lineage[taxid] = tax.find_lineage(taxid, taxid2parent)
     
     message = "BAT is flying! Files {0} and {1} are created.".format(
         args.bin2classification_output_file, args.ORF2LCA_output_file)
