@@ -30,6 +30,7 @@ def parse_arguments():
     shared.add_argument(optional, "bin_suffix", False, default=".fna")
     shared.add_argument(optional, "r", False, default=decimal.Decimal(5))
     shared.add_argument(optional, "f", False, default=decimal.Decimal(0.3))
+    shared.add_argument(optional, "orf_support", False, default=decimal.Decimal(1.0))
     shared.add_argument(optional, "out_prefix", False, default="./out.BAT")
     shared.add_argument(optional, "proteins_fasta", False)
     shared.add_argument(optional, "alignment_file", False)
@@ -457,7 +458,7 @@ def run():
 
                     (taxid,
                             top_bitscore) = tax.find_LCA_for_ORF(
-                        ORF2hits[ORF], fastaid2LCAtaxid, taxid2lineage)
+                        ORF2hits[ORF], fastaid2LCAtaxid, taxid2lineage, args.orf_support)
                      
                     if taxid.startswith("no taxid found"):
                         outf2.write("{0}\t{1}\t{2}\t{3}\t{4}\n".format(

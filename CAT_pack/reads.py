@@ -68,6 +68,7 @@ def parse_arguments():
     shared.add_argument(optional, "alignment_file", False)
     shared.add_argument(CAT_args, 'r', False, default=decimal.Decimal(10))
     shared.add_argument(CAT_args, 'f', False, default=decimal.Decimal(0.5))
+    shared.add_argument(optional, "orf_support", False, default=decimal.Decimal(1.0))
     shared.add_argument(CAT_args, 'path_to_prodigal', False, default="prodigal")
     shared.add_argument(CAT_args, 'path_to_diamond', False, default="diamond")
     shared.add_argument(CAT_args, 'no_stars', False)
@@ -495,7 +496,8 @@ def run():
                                           taxid2rank,
                                           taxids_with_multiple_offspring,
                                           taxid2lineage,
-                                          args.no_stars)
+                                          args.no_stars,
+                                          args.orf_support)
             u2c=process_CAT_table('{0}.unmapped2classification.txt'.format(args.out_prefix), 
                                   args.nodes_dmp, 
                                   args.log_file, 
@@ -561,7 +563,8 @@ def write_unmapped2classification(seq2hits,
                                   taxid2rank, 
                                   taxids_with_multiple_offspring,
                                   taxid2lineage,
-                                  no_stars):
+                                  no_stars,
+                                  orf_support):
     
     
     
@@ -582,7 +585,7 @@ def write_unmapped2classification(seq2hits,
             
             (taxid,
                     top_bitscore) = tax.find_LCA_for_ORF(
-                            seq2hits[seq], fastaid2LCAtaxid, taxid2lineage)
+                            seq2hits[seq], fastaid2LCAtaxid, taxid2lineage, orf_support)
              
             if not taxid.startswith('no taxid found'):
                 lineage = tax.find_lineage(taxid, taxid2parent)
