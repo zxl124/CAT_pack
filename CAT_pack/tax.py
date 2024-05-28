@@ -3,6 +3,7 @@
 import sys
 from collections import defaultdict
 import shared
+import decimal
 
 
 def import_nodes(nodes_dmp, log_file, quiet):
@@ -101,7 +102,7 @@ def find_LCA(list_of_lineages):
 def find_LCA_for_ORF(hits, fastaid2LCAtaxid, taxid2lineage, orf_support):
     top_bitscore = 0
     total_bitscore = 0
-    taxid2bitscore = defaultdict(float)
+    taxid2bitscore = defaultdict(decimal.Decimal)
     lineage_length = defaultdict(int)
 
     for (hit, bitscore) in hits:
