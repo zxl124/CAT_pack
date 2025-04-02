@@ -69,6 +69,7 @@ def parse_arguments():
     shared.add_argument(CAT_args, 'r', False, default=decimal.Decimal(10))
     shared.add_argument(CAT_args, 'f', False, default=decimal.Decimal(0.5))
     shared.add_argument(optional, "orf_support", False, default=decimal.Decimal(1.0))
+    shared.add_argument(optional, "ignore_notax_hits", False)
     shared.add_argument(CAT_args, 'path_to_prodigal', False, default="prodigal")
     shared.add_argument(CAT_args, 'path_to_diamond', False, default="diamond")
     shared.add_argument(CAT_args, 'no_stars', False)
@@ -469,22 +470,31 @@ def run():
                                                         args.log_file,
                                                         args.quiet)
             shared.explore_database_folder(args)
-            seq2hits, all_hits = shared.parse_tabular_alignment(args.alignment_file,
-                                                                decimal.Decimal(1-args.r),
-                                                                args.log_file,
-                                                           args.quiet)
-            fastaid2LCAtaxid = tax.import_fastaid2LCAtaxid(args.fastaid2LCAtaxid_file, 
-                                                           all_hits, args.log_file,
-                                                           args.quiet)
             taxids_with_multiple_offspring = tax.import_taxids_with_multiple_offspring(
                 args.taxids_with_multiple_offspring_file,
                 args.log_file,
                 args.quiet)
-            # Find lineages of all taxids so they don't have to be found repetitively later
-            taxid2lineage = dict()
-            for taxid in fastaid2LCAtaxid.values():
-                if taxid not in taxid2lineage:
-                    taxid2lineage[taxid] = tax.find_lineage(taxid, taxid2parent)
+            
+            if args.ignore_notax_hits:
+                # Import all fastaid2LCAtaxid relationships because we need to inspect lineages of hits to exclude meaningless ones
+                fastaid2LCAtaxid = tax.import_fastaid2LCAtaxid(
+                    args.fastaid2LCAtaxid_file, None, args.log_file, args.quiet)
+                # Use the lineage aware function; pass along necessary info to find lineages
+                seq2hits, taxid2lineage = shared.parse_tabular_alignment_with_lineage(
+                    args.alignment_file, args.one_minus_r, args.log_file, args.quiet, taxid2parent, fastaid2LCAtaxid)
+            else:
+                # This function is blind to lineage of hits
+                seq2hits, all_hits = shared.parse_tabular_alignment(
+                    args.alignment_file, args.one_minus_r, args.log_file, args.quiet)
+                # This would reduce the number of fastaid2LCAtaxid to only all the relavant hits
+                fastaid2LCAtaxid = tax.import_fastaid2LCAtaxid(
+                    args.fastaid2LCAtaxid_file, all_hits, args.log_file, args.quiet)
+                # Find lineages of all taxids that appeared in hits so they don't have to be found repetitively later
+                taxid2lineage = dict()
+                for taxid in fastaid2LCAtaxid.values():
+                    if taxid not in taxid2lineage:
+                        taxid2lineage[taxid] = tax.find_lineage(taxid, taxid2parent)
+
             message = ('Finding lineages for unclassified/unmapped sequences...')
             shared.give_user_feedback(message, args.log_file, args.quiet,
                 show_time=True)
@@ -580,8 +590,12 @@ def write_unmapped2classification(seq2hits,
                 continue
             
             n_hits = len(seq2hits[seq])
+            if n_hits==0:
+                outf.write('{0}\tno taxid assigned\tno meaningful hits found\n'.format(
+                    seq))
+                continue
+                
             LCAs_ORFs = []
-            
             
             (taxid,
                     top_bitscore) = tax.find_LCA_for_ORF(

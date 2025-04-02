@@ -56,7 +56,7 @@ def import_fastaid2LCAtaxid(fastaid2LCAtaxid_file, all_hits, log_file, quiet):
         for line in f1:
             line = line.rstrip().split("\t")
 
-            if line[0] in all_hits:
+            if all_hits is None or line[0] in all_hits:
                 # Only include fastaids that are found in hits.
                 fastaid2LCAtaxid[line[0]] = line[1]
 
@@ -106,15 +106,16 @@ def find_LCA_for_ORF(hits, fastaid2LCAtaxid, taxid2lineage, orf_support):
     lineage_length = defaultdict(int)
 
     for (hit, bitscore) in hits:
-        if bitscore > top_bitscore:
-            top_bitscore = bitscore
-        total_bitscore += bitscore
-
         try:
             taxid = fastaid2LCAtaxid[hit]
         except:
             # The fastaid does not have an associated taxid for some reason.
             continue
+
+        if bitscore > top_bitscore:
+            top_bitscore = bitscore
+        total_bitscore += bitscore
+        
         lineage = taxid2lineage[taxid]
         for i,taxid in enumerate(lineage):
             taxid2bitscore[taxid] += bitscore
@@ -128,7 +129,7 @@ def find_LCA_for_ORF(hits, fastaid2LCAtaxid, taxid2lineage, orf_support):
         )
     
     max_length = 0
-    best_taxid = "no taxid found ({0})".format(";".join([i[0] for i in hits]))
+    best_taxid = "no taxid found with confidence ({0})".format(";".join([i[0] for i in hits]))
     for taxid, bitscore in taxid2bitscore.items():
         if bitscore/total_bitscore >= orf_support and lineage_length[taxid] > max_length:
             max_length = lineage_length[taxid]

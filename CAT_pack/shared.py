@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import check
+import tax
 
 
 class PathAction(argparse.Action):
@@ -234,6 +235,16 @@ def add_argument(argument_group, dest, required, default=None, help_=None):
             choices=[i / 100 for i in range(50, 101)],
             action=DecimalAction,
             default=default,
+            help=help_,
+        )
+    elif dest == "ignore_notax_hits":
+        if help_ is None:
+            help_ = "Ignore hits that have no meaningful taxonomy"
+        argument_group.add_argument(
+            "--ignore_notax_hits",
+            dest="ignore_notax_hits",
+            required=required,
+            action="store_true",
             help=help_,
         )
     elif dest == "out_prefix":
@@ -1394,18 +1405,17 @@ def parse_tabular_alignment(alignment_file, one_minus_r, log_file, quiet):
         if compressed:
             line = line.decode("utf-8")
 
-        if line.startswith(ORF) and ORF_done == True:
+        line = line.rstrip().split("\t")
+
+        if line[0] == ORF and ORF_done == True:
             # The ORF has already surpassed its minimum allowed bit-score.
             continue
-
-        line = line.rstrip().split("\t")
 
         if not line[0] == ORF:
             # A new ORF is reached.
             ORF = line[0]
             top_bitscore = decimal.Decimal(line[11])
             ORF2hits[ORF] = []
-
             ORF_done = False
 
         bitscore = decimal.Decimal(line[11])
@@ -1425,6 +1435,68 @@ def parse_tabular_alignment(alignment_file, one_minus_r, log_file, quiet):
 
     return (ORF2hits, all_hits)
 
+def parse_tabular_alignment_with_lineage(alignment_file, one_minus_r, log_file, quiet, taxid2parent, fastaid2LCAtaxid):
+    message = "Parsing alignment file {0} while ignoring hits with meaningless taxonomy.".format(alignment_file)
+    give_user_feedback(message, log_file, quiet)
+
+    ignored_taxids = {'28384', '12908', '49928', '48479', '93506', '48510', '42452', '61964', '186616', '12429'}
+
+    compressed = False
+    if alignment_file.endswith(".gz"):
+        compressed = True
+        f1 = gzip.open(alignment_file, "rb")
+    else:
+        f1 = open(alignment_file, "r")
+
+    ORF2hits = {}
+    taxid2lineage = {}
+
+    ORF = "first ORF"
+    ORF_done = False
+    for line in f1:
+        if compressed:
+            line = line.decode("utf-8")
+
+        line = line.rstrip().split("\t")
+
+        if line[0] == ORF and ORF_done == True:
+            # The ORF has already surpassed its minimum allowed bit-score.
+            continue
+
+        if not line[0] == ORF:
+            # A new ORF is reached.
+            ORF = line[0]
+            ORF2hits[ORF] = []
+            ORF_done = False
+            top_bitscore = None      
+
+        bitscore = decimal.Decimal(line[11])
+
+        if top_bitscore is None or bitscore >= one_minus_r * top_bitscore:
+            # The hit has a high enough bit-score to be included.
+            hit = line[1]
+            try:
+                taxid = fastaid2LCAtaxid[hit]
+            except:
+                continue # This hit has no taxid, ignored.
+            if taxid not in taxid2lineage:
+                lineage = tax.find_lineage(taxid, taxid2parent)
+                taxid2lineage[taxid] = lineage
+            else:
+                lineage = taxid2lineage[taxid]
+            if any([t in ignored_taxids for t in reversed(lineage)]): 
+                continue # Found bad taxid, ignore this hit.
+            if top_bitscore is None:
+                top_bitscore = bitscore
+            ORF2hits[ORF].append(
+                (hit, bitscore),)
+        else:
+            # The hit is not included because its bit-score is too low.
+            ORF_done = True
+
+    f1.close()
+
+    return (ORF2hits, taxid2lineage)
 
 def is_gz(file_path):
     """Check if given file_paht is gzipped based on suffix."""
