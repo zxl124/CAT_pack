@@ -4,7 +4,8 @@ import sys
 from collections import defaultdict
 import shared
 import decimal
-
+import sqlite3
+import os
 
 def import_nodes(nodes_dmp, log_file, quiet):
     message = "Loading file {0}.".format(nodes_dmp)
@@ -45,23 +46,46 @@ def import_names(names_dmp, log_file, quiet):
 
     return taxid2name
 
+class Fastaid2LCAtaxid_DB:
+    def __init__(self, db_path):
+        self.conn = sqlite3.connect(db_path)
+        self.cur = self.conn.cursor()
+
+    def get(self, key, default=None):
+        self.cur.execute("SELECT value FROM mapping WHERE key = ?", (key,))
+        row = self.cur.fetchone()
+        return row[0] if row else default
+
+    def __getitem__(self, key):
+        result = self.get(key)
+        if result is None:
+            raise KeyError(key)
+        return result
+
+    def __contains__(self, key):
+        self.cur.execute("SELECT 1 FROM mapping WHERE key = ? LIMIT 1", (key,))
+        return self.cur.fetchone() is not None
+
+    def close(self):
+        self.conn.close()
 
 def import_fastaid2LCAtaxid(fastaid2LCAtaxid_file, all_hits, log_file, quiet):
-    message = "Loading file {0}.".format(fastaid2LCAtaxid_file)
-    shared.give_user_feedback(message, log_file, quiet)
-
-    fastaid2LCAtaxid = {}
-
-    with open(fastaid2LCAtaxid_file, "r") as f1:
-        for line in f1:
-            line = line.rstrip().split("\t")
-
-            if all_hits is None or line[0] in all_hits:
-                # Only include fastaids that are found in hits.
-                fastaid2LCAtaxid[line[0]] = line[1]
-
-    return fastaid2LCAtaxid
-
+    db_path = fastaid2LCAtaxid_file + ".db"
+    if os.path.exists(db_path):
+        message = "Using file {0} as SQLite database file".format(db_path)
+        shared.give_user_feedback(message, log_file, quiet)
+        return Fastaid2LCAtaxid_DB(db_path)
+    else:
+        message = "Loading file {0}.".format(fastaid2LCAtaxid_file)
+        shared.give_user_feedback(message, log_file, quiet)
+        fastaid2LCAtaxid = {}
+        with open(fastaid2LCAtaxid_file, "r") as f1:
+            for line in f1:
+                line = line.rstrip().split("\t")
+                if all_hits is None or line[0] in all_hits:
+                    # Only include fastaids that are found in hits.
+                    fastaid2LCAtaxid[line[0]] = line[1]
+        return fastaid2LCAtaxid
 
 def import_taxids_with_multiple_offspring(
     taxids_with_multiple_offspring_file, log_file, quiet):
