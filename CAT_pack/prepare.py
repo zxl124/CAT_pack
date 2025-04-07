@@ -8,6 +8,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import sqlite3
 
 import check
 import shared
@@ -185,6 +186,29 @@ def import_prot_accession2taxid(
     return prot_accession2taxid
 
 
+def make_fastaid2LCAtaxid_db(fastaid2LCAtaxid_file, db_path):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    # Create table
+    cur.execute("CREATE TABLE IF NOT EXISTS mapping (key TEXT PRIMARY KEY, value TEXT)")
+
+    # Optional: speed up bulk insert
+    cur.execute("PRAGMA synchronous = OFF")
+    cur.execute("PRAGMA journal_mode = MEMORY")
+
+    with open(fastaid2LCAtaxid_file, "r") as f:
+        batch = []
+        for line in f:
+            key, val = line.rstrip("\n").split("\t")
+            batch.append((key, val))
+
+        cur.executemany("INSERT OR REPLACE INTO mapping VALUES (?, ?)", batch)
+
+    conn.commit()
+    conn.close()
+
+
 def make_fastaid2LCAtaxid_file(
     fastaid2LCAtaxid_file,
     fasta_file,
@@ -258,6 +282,15 @@ def make_fastaid2LCAtaxid_file(
     )
     shared.give_user_feedback(message, log_file, quiet)
 
+    make_fastaid2LCAtaxid_db(fastaid2LCAtaxid_file, fastaid2LCAtaxid_file+".db")
+
+    message = (
+        "Done! File {0} is created to SQLite DB for fastaid2LACtaxid.".format(
+            fastaid2LCAtaxid_file+".db"
+        )
+    )
+    shared.give_user_feedback(message, log_file, quiet)
+    
     return
 
 
