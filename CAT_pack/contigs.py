@@ -27,6 +27,7 @@ def parse_arguments():
     shared.add_argument(optional, "r", False, default=decimal.Decimal(10))
     shared.add_argument(optional, "f", False, default=decimal.Decimal(0.5))
     shared.add_argument(optional, "orf_support", False, default=decimal.Decimal(1.0))
+    shared.add_argument(optional, "ignore_notax_hits", False)
     shared.add_argument(optional, "out_prefix", False, default="./out.CAT")
     shared.add_argument(optional, "proteins_fasta", False)
     shared.add_argument(optional, "alignment_file", False)
@@ -286,23 +287,31 @@ def run():
     if "align" in step_list:
         shared.run_diamond(args)
 
-    (ORF2hits,
-            all_hits) = shared.parse_tabular_alignment(
-        args.alignment_file, args.one_minus_r, args.log_file, args.quiet)
-
     (taxid2parent,
             taxid2rank) = tax.import_nodes(
         args.nodes_dmp, args.log_file, args.quiet)
-    fastaid2LCAtaxid = tax.import_fastaid2LCAtaxid(
-        args.fastaid2LCAtaxid_file, all_hits, args.log_file, args.quiet)
     taxids_with_multiple_offspring = tax.import_taxids_with_multiple_offspring(
         args.taxids_with_multiple_offspring_file, args.log_file, args.quiet)
     
-    # Find lineages of all taxids so they don't have to be found repetitively later
-    taxid2lineage = dict()
-    for taxid in fastaid2LCAtaxid.values():
-        if taxid not in taxid2lineage:
-            taxid2lineage[taxid] = tax.find_lineage(taxid, taxid2parent)
+    if args.ignore_notax_hits:
+        # Import all fastaid2LCAtaxid relationships because we need to inspect lineages of hits to exclude meaningless ones
+        fastaid2LCAtaxid = tax.import_fastaid2LCAtaxid(
+            args.fastaid2LCAtaxid_file, None, args.log_file, args.quiet)
+        # Use the lineage aware function; pass along necessary info to find lineages
+        ORF2hits, taxid2lineage = shared.parse_tabular_alignment_with_lineage(
+            args.alignment_file, args.one_minus_r, args.log_file, args.quiet, taxid2parent, fastaid2LCAtaxid)
+    else:
+        # This function is blind to lineage of hits
+        ORF2hits, all_hits = shared.parse_tabular_alignment(
+            args.alignment_file, args.one_minus_r, args.log_file, args.quiet)
+        # This would reduce the number of fastaid2LCAtaxid to only all the relavant hits
+        fastaid2LCAtaxid = tax.import_fastaid2LCAtaxid(
+            args.fastaid2LCAtaxid_file, all_hits, args.log_file, args.quiet)
+        # Find lineages of all taxids that appeared in hits so they don't have to be found repetitively later
+        taxid2lineage = dict()
+        for taxid in fastaid2LCAtaxid.values():
+            if taxid not in taxid2lineage:
+                taxid2lineage[taxid] = tax.find_lineage(taxid, taxid2parent)
 
     message = "CAT is spinning! Files {0} and {1} are created.".format(
         args.contig2classification_output_file, args.ORF2LCA_output_file)
@@ -321,7 +330,6 @@ def run():
             if contig not in contig2ORFs:
                 outf1.write("{0}\tno taxid assigned\tno ORFs found\n".format(
                     contig))
-                
                 continue
 
             LCAs_ORFs = []
@@ -330,10 +338,13 @@ def run():
                 if ORF not in ORF2hits:
                     outf2.write("{0}\tORF has no hit to database\n".format(
                         ORF))
-
                     continue
 
                 n_hits = len(ORF2hits[ORF])
+                if n_hits==0:
+                    outf2.write("{0}\tORF has no meaningful hit to database\n".format(
+                        ORF))
+                    continue
                 
                 (taxid,
                         top_bitscore) = tax.find_LCA_for_ORF(
