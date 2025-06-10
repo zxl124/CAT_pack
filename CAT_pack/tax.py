@@ -79,12 +79,15 @@ def import_fastaid2LCAtaxid(fastaid2LCAtaxid_file, all_hits, log_file, quiet):
         message = "Loading file {0}.".format(fastaid2LCAtaxid_file)
         shared.give_user_feedback(message, log_file, quiet)
         fastaid2LCAtaxid = {}
+        value_cache = {}
         with open(fastaid2LCAtaxid_file, "r") as f1:
             for line in f1:
-                line = line.rstrip().split("\t")
+                key, val = line.rstrip().split("\t")
+                if val not in value_cache:
+                    value_cache[val] = val
                 if all_hits is None or line[0] in all_hits:
                     # Only include fastaids that are found in hits.
-                    fastaid2LCAtaxid[line[0]] = line[1]
+                    fastaid2LCAtaxid[key] = value_cache[val]
         return fastaid2LCAtaxid
 
 def import_taxids_with_multiple_offspring(
